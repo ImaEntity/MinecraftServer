@@ -1,45 +1,64 @@
 #include "packet.h"
+#include "varint.h"
+#include "../types.h"
 
-MCPacket CreatePacket(int id, unsigned byte *data, unsigned llong dataSize) {
-    MCVarInt packetID = CreateVarInt(id);
-    MCVarInt length = CreateVarInt(packetID.size + dataSize);
-    return (MCPacket) {
-        .length = length,
-        .packetID = packetID,
-        .data = data
-    };
-}  
+#include <stdio.h>
+#include <windows.h>
+
+boolean ReadPacket(SOCKET socket, MCPacket *packet) {
+    byte idLen;
+    packet -> length = ReadVarInt(socket, NULL);
+    packet -> id = ReadVarInt(socket, &idLen);
+
+    if(packet -> length == ERROR_VALUE) return false;
+    if(packet -> id == ERROR_VALUE) return false;
+
+    printf("vPacket{ID=%02X,LEN=%d}\n", packet -> id, packet -> length);
+    if(packet -> length - idLen == 0) return true;
+
+    packet -> data = HeapAlloc(GetProcessHeap(), 0, packet -> length - idLen);
+    if(packet -> data == NULL) return false;
+    
+    if(recv(socket, (char *) packet -> data, packet -> length - idLen, 0) == 0) {
+        HeapFree(GetProcessHeap(), 0, packet -> data);
+        return false;
+    }
+    
+    return true;
+}
 
 void WritePacket(SOCKET socket, MCPacket packet) {
-    MCVarInt length = packet.length;
-    MCVarInt id = packet.packetID;
+    byte *buf = LocalAlloc(LMEM_FIXED, packet.length);
+    if(buf == NULL) return;
 
-    send(socket, (char *) length.bytes, length.size, 0);
-    send(socket, (char *) id.bytes, id.size, 0);
-    send(socket, (char *) packet.data, packet.length.value, 0);
+    ulong off = 0;
+    byte idLen = AppendVarInt(buf, packet.id, &off);
+
+    WriteVarInt(socket, packet.length);
+    if(packet.length - idLen > 0) {
+        memcpy(buf + off, packet.data, packet.length - off);
+        send(socket, (char *) buf, packet.length, 0);
+    }
+
+    LocalFree(buf);
+    printf("^Packet{ID=%02X,LEN=%d}\n", packet.id, packet.length);
 }
 
-MCPacket ReadPacket(SOCKET socket) {
-    MCVarInt length = ReadVarIntSocket(socket);
-    MCVarInt packetID = ReadVarIntSocket(socket);
+void SendPacket(SOCKET socket, int id, byte *data, ulong dataSize) {
+    byte idBuf[MAX_VARINT_LEN];
+    byte idLen = AppendVarInt(idBuf, id, NULL);
 
-    unsigned byte *buffer = LocalAlloc(LMEM_FIXED, length.value - packetID.size);
-    
-    int len = 0;
-    
-    while(len < length.value - packetID.size)
-        len += recv(socket, (char *) buffer + len, length.value - packetID.size - len, 0);
-    
-    return (MCPacket) {
-        .length = length,
-        .packetID = packetID,
-        .data = buffer
-    };
+    WritePacket(socket, (MCPacket) {
+        .length = idLen + dataSize,
+        .data = data,
+        .id = id
+    });
 }
 
-void FreePacket(MCPacket packet) {
-    if(packet.data == NULL)
-        return;
+void FreePacket(MCPacket *packet) {
+    if(packet == NULL) return;
+    if(packet -> data == NULL) return;
 
-    free(packet.data);
+    HeapFree(GetProcessHeap(), 0, packet -> data);
+    packet -> data = NULL;
 }

@@ -42,6 +42,8 @@
 #include <string.h>
 #include <float.h>
 
+#define HAS_STANDARD_LIB
+
 #ifndef HAS_STANDARD_LIB
 void *memcpy(void *_Dst, const void *_Src, size_t _Size) {
     if(_Dst == NULL || _Src == NULL)

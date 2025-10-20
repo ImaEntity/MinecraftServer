@@ -2,7 +2,7 @@
 #define HH_PACKET
 
 #include <winsock2.h>
-#include "types.h"
+#include "../types.h"
 
 /*==============================================================================
  * Client to Server packets
@@ -37,17 +37,18 @@
 #define S2C_LOGIN_PLUGIN_REQUEST     0x04
 
 // Play
+#define S2C_PLAY_LOGIN      0x28
 #define S2C_PLAY_DISCONNECT 0x1A
 
 typedef struct {
-    MCVarInt length;
-    MCVarInt packetID;
-    unsigned byte *data;
+    int length;
+    int id;
+    byte *data;
 } MCPacket;
 
-MCPacket CreatePacket(int id, unsigned byte *data, unsigned llong dataSize);
+boolean ReadPacket(SOCKET socket, MCPacket *packet);
 void WritePacket(SOCKET socket, MCPacket packet);
-MCPacket ReadPacket(SOCKET socket);
-void FreePacket(MCPacket packet);
+void SendPacket(SOCKET socket, int id, byte *data, ulong dataSize);
+void FreePacket(MCPacket *packet);
 
 #endif

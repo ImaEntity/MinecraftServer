@@ -1,33 +1,58 @@
-#include "utils/math.h"
-#include "utils/vector.h"
-#include "server/server.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <conio.h>
 
 #include <windows.h>
 
-void CRTBootstrapper() {
+#include "types.h"
+#include "server/api.h"
+
+int main() {
     WSADATA wsaData;
     WSAStartup(MAKEWORD(2, 2), &wsaData);
 
     Server server = CreateServer((ServerProperties) {
         .allowNether = true,
-        .difficulty = DIF_EASY,
+        .difficulty = DIF_NORMAL,
         .enableCommandBlock = true,
         .gamemode = GM_SURVIVAL,
         .generateStructures = true,
-        .hardcore = true,
-        .levelSeed = -1,
+        .hardcore = false,
+        .levelSeed = 0xC0FFEE,
         .maxPlayers = 8,
         .motd = "Hello, world!",
-        .onlineMode = false,
+        .onlineMode = false, // easier to implement
         .pvp = true,
-        .simulationDistance = 5,
+        .simulationDistance = 8,
         .spawnMonsters = true,
         .spawnProtection = 0,
-        .viewDistance = 8
-    }, 25565);
+        .viewDistance = 16
+    });
 
-    StartServer(server);
+    StartServer(server, DEFAULT_PORT);
 
+    char buffer[4096];
+    ulong size = 0;
+
+    while(IsRunning(server)) {
+        // check input for new chars
+        // if buffer has a newline
+        // split at newline and parse as command
+
+        if(!_kbhit()) continue;
+        
+        char c = _getch();
+        if(c == '\r') continue; // nice try
+
+        buffer[size++] = c;
+        if(c == '\n') {
+            buffer[size] = 0;
+            RunCommand(server, buffer);
+            size = 0;
+        }
+    }
+
+    StopServer(server);
     WSACleanup();
-    ExitProcess(0);
+    return 0;
 }
